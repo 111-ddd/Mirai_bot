@@ -34,6 +34,11 @@ http接口 = 'http://localhost:23323/'
 真人接口 = ['https://api.nmb.show/xiaojiejie1.php', 'https://api.nmb.show/xiaojiejie2.php']
 头像接口 = ['https://api.sunweihu.com/api/sjtx/api.php?lx=']
 手机查询 = ['https://api.muxiaoguo.cn/api/chePhone?phoneNum=']
+花雨庭接口1 = 'http://mc-api.16163.com/search/{}.html?uid={}'
+花雨庭接口2 = 'https://mc-api.16163.com/search/info.html?key={}'
+花雨庭模式 = ['bedwars', 'skywars', 'kitbattle', 'bedwarsxp', 'uhc', 'pubgsolo', 'pubgdouble', 'werewolf']
+接口1查询 = ['bedwars', 'skywars', 'kitbattle']
+接口2查询 = list(set(花雨庭模式) - set(接口1查询))
 第一条消息 = 0
 小号限制 = time()
 上一次消息 = ''
@@ -44,10 +49,29 @@ http接口 = 'http://localhost:23323/'
 qq号 = 0
 手机号 = 0
 地区 = ''
+LOL名 = ''
+LOL大区 = ''
 
+with open(违禁词地址, 'r', encoding='gbk') as 文件对象:
+    违禁词列表 = 文件对象.read().split('\n')
 
-# LOL名 = ''
-# LOL大区 = ''
+with open(配置地址, 'r', encoding='gbk') as 文件对象:
+    配置_json格式 = 文件对象.read()
+
+with open(商店内容地址, 'r', encoding='gbk') as 文件对象:
+    商店内容 = 文件对象.read()
+
+with open(小号地址, 'r') as 文件对象:
+    小号列表 = 文件对象.read().split('\n')
+
+配置 = loads(配置_json格式)
+白名单列表 = 配置['名单']['白名单']
+黑名单 = 配置['名单']['黑名单']
+超管名单 = 配置['名单']['超管']
+总开关 = 配置['总开关']
+验证开关 = 配置['验证']
+功能开关 = 配置['功能']
+格式 = 配置['格式']
 
 
 def 压缩图片(图片地址, 宽, 高, 保存地址):
@@ -168,8 +192,63 @@ def 撤回消息(消息编号):
     服务器对象.send(请求内容_json格式)
 
 
+def 花雨庭查询(ID, 模式, 群号):
+    print(ID, 模式)
+    模板 = 格式[模式]
+    if 模式 in 接口1查询:
+        请求对象 = get(花雨庭接口1.format(模式, ID))
+        结果 = 请求对象.text
+        if 'Not Found' in 结果:
+            消息链 = [{'type': 'Plain', 'text': '未找到结果'}]
+        else:
+            结果 = loads(结果)
+            if 模式 == 'bedwars':
+                渲染 = 模板.format(结果['name'], 结果['duanwei'], 结果['winRate'],
+                               结果['killDead'], 结果['rank'], 结果['playNum'], 结果['beddesNum'],
+                               结果['rowNum'], 结果['rowRate'], 结果['lastkillNum'], 结果['mvpNum'])
+            elif 模式 == 'skywars':
+                渲染 = 模板.format(结果['name'], 结果['duanwei'], 结果['winRate'],
+                               结果['killDead'], 结果['rank'], 结果['playNum'], 结果['killNum'])
+            elif 模式 == 'kitbattle':
+                # 职业战争
+                渲染 = 模板.format(结果['name'], 结果['duanwei'], 结果['rank'],
+                               结果['exp'], 结果['killDead'], 结果['deadNum'], 结果['killNum'])
+            消息链 = [{'type': 'Plain', 'text': 渲染}]
+    elif 模式 in 接口2查询:
+        请求对象 = get(花雨庭接口2.format(模式))
+        结果 = loads(请求对象.text)
+        渲染 = ''
+        for 循环对象 in 结果:
+            if 循环对象['name'] == ID:
+                if 模式 == 'bedwarsxp':
+                    渲染 = 模板.format(循环对象['name'], 循环对象['duanwei'], 循环对象['winRate'],
+                                   循环对象['killDead'], 循环对象['rank'], 循环对象['games'], 循环对象['dbed'],
+                                   循环对象['deadNum'], 循环对象['killNum'])
+                elif 模式 == 'uhc':
+                    渲染 = 模板.format(循环对象['name'], 循环对象['duanwei'], 循环对象['winRate'],
+                                   循环对象['killDead'], 循环对象['rank'], 循环对象['gamePlayed'], 循环对象['win'],
+                                   循环对象['killNum'], 循环对象['deadNum'])
+                # 吃鸡系列
+                elif 模式 == 'pubgsolo' or 模式 == 'pubgdouble':
+                    渲染 = 模板.format(循环对象['name'], 循环对象['duanwei'], 循环对象['killDead'],
+                                   循环对象['rank'], 循环对象['play'], 循环对象['person']['wins'], 循环对象['killNum'],
+                                   循环对象['DeadNum'])
+                # 狼人杀
+                else:
+                    渲染 = 模板.format(循环对象['name'], 循环对象['duanwei'], 循环对象['winRate'],
+                                   循环对象['rank'], 循环对象['play'], 循环对象['win'], 循环对象['kills'],
+                                   循环对象['name'], 循环对象['name'], 循环对象['name'], 循环对象['name'])
+        if 渲染 == '':
+            消息链 = [{'type': 'Plain', 'text': '未找到结果'}]
+        else:
+            消息链 = [{'type': 'Plain', 'text': 渲染}]
+    else:
+        消息链 = [{'type': 'Plain', 'text': '没有此模式'}]
+    发送消息('sendGroupMessage', 群号, 消息链)
+
+
 def 恶俗(模式, 目标, 群号):
-    global qq号, 手机号, 地区
+    global qq号, 手机号, 地区, LOL大区, LOL名
 
     def qq查手机(目标qq):
         global qq号, 手机号, 地区
@@ -197,27 +276,29 @@ def 恶俗(模式, 目标, 群号):
             手机号 = 目标手机号
             地区 = '地球村'
 
-    # def qq_查LOL(目标qq号):
-    #     global LOL大区, LOL名
-    #     请求对象 = get('http://zy.xywlapi.cc/qqlol?qq=%s' % 目标qq号)
-    #     恶俗结果 = loads(请求对象.text)
-    #     if 恶俗结果['message'] != '没有找到':
-    #         LOL名 = 恶俗结果['name']
-    #         LOL大区 = 恶俗结果['daqu']
-    #     else:
-    #         LOL名 = 'None'
-    #         LOL大区 = 'None'
+    def qq_查LOL(目标qq号):
+        global LOL大区, LOL名
+        请求对象 = get('http://zy.xywlapi.cc/qqlol?qq=%s' % 目标qq号)
+        恶俗结果 = loads(请求对象.text)
+        if 恶俗结果['message'] != '没有找到':
+            LOL名 = 恶俗结果['name']
+            LOL大区 = 恶俗结果['daqu']
+        else:
+            LOL名 = 'None'
+            LOL大区 = 'None'
 
     if 模式 == '查询':
         线程_恶俗1 = Thread(target=qq查手机, args=(目标,))
+        线程_恶俗2 = Thread(target=qq_查LOL, args=(目标,))
         线程_恶俗1.start()
+        线程_恶俗2.start()
         线程_恶俗1.join()
-        # 线程_恶俗2 = Thread(target=qq_查LOL, args=(目标,))
-        # 线程_恶俗2.start()
-        # 线程_恶俗2.join()
+        线程_恶俗2.join()
         恶俗消息 = '''QQ: {}
 手机号: {}
-地区: {}'''.format(qq号, 手机号, 地区)
+地区: {}
+LOL名: {}
+LOL区: {}'''.format(qq号, 手机号, 地区, LOL名, LOL大区)
         消息链 = [{'type': 'Image', 'url': 'https://tenapi.cn/qqimg/?qq=%s' % 目标}, {'type': 'Plain', 'text': 恶俗消息}]
     else:
         线程_恶俗3 = Thread(target=手机查qq, args=(目标,))
@@ -261,26 +342,6 @@ def 保存配置(配置):
     with open(配置地址, 'w', encoding='gbk') as 文件对象:
         文件对象.write(配置_json)
 
-
-with open(违禁词地址, 'r', encoding='gbk') as 文件对象:
-    违禁词列表 = 文件对象.read().split('\n')
-
-with open(配置地址, 'r', encoding='gbk') as 文件对象:
-    配置_json格式 = 文件对象.read()
-
-with open(商店内容地址, 'r', encoding='gbk') as 文件对象:
-    商店内容 = 文件对象.read()
-
-with open(小号地址, 'r') as 文件对象:
-    小号列表 = 文件对象.read().split('\n')
-
-配置 = loads(配置_json格式)
-白名单列表 = 配置['名单']['白名单']
-黑名单 = 配置['名单']['黑名单']
-超管名单 = 配置['名单']['超管']
-总开关 = 配置['总开关']
-验证开关 = 配置['验证']
-功能开关 = 配置['功能']
 
 print('初始化完成!')
 
@@ -352,7 +413,7 @@ while True:
 
             elif 消息类型_取文本 == 'MiraiCode':
                 消息文本 += 'MiraiCode: %s' % 循环对象['code']
-        消息文本 = 消息文本.lower().strip().replace(' ', '')
+        消息文本 = 消息文本.strip().replace(' ', '')
         print(消息文本)
 
         # 云黑检测
@@ -462,6 +523,12 @@ By Edwad_过客[3055843259]'''.format(CPU占用, 内存占用)
             else:
                 消息链 = [{'type': 'At', 'target': 发送者}, {'type': 'Plain', 'text': '您不在授权群!'}]
             发送消息('sendGroupMessage', 群号, 消息链)
+
+        elif 消息文本.startswith('hyt查询|') and 消息文本.count('|') == 2:
+            切割 = 消息文本.split('|')
+            模式 = 切割[2]
+            ID = 切割[1]
+            线程_花雨庭 = Thread(target=花雨庭查询, args=(ID, 模式, 群号,)).start()
 
         elif 消息文本.startswith('获取头像|'):
             if 群号 in 配置['功能']['获取头像'] and 总开关['获取头像']:
@@ -638,34 +705,36 @@ By Edwad_过客[3055843259]'''.format(CPU占用, 内存占用)
         elif 消息文本 == '私聊获取小号':
             if 群号 in 配置['功能']['私聊获取小号'] and 总开关['私聊获取小号']:
                 if 小号限制 + 30 <= time() or 发送者 in 超管名单:
-                    模板 = 配置['格式']['小号格式']
-                    小号 = 小号列表[0].split('----')
-                    渲染 = 模板.format(小号[0], 小号[1], len(小号列表) - 1).replace('\\n', '\n')
-                    小号限制 = time()
-                    消息链 = [{'type': 'Plain', 'text': '小号已私发!'}]
-                    发送消息('sendGroupMessage', 群号, 消息链)
-                    消息链 = [{'type': 'Plain', 'text': 渲染}]
-                    发送群临时消息(发送者, 群号, 消息链)
-                    小号列表.pop(0)
-                    保存小号(小号列表)
+                    if len(小号列表) != 0 and 小号列表[0] != '':
+                        小号 = 小号列表[0].split('----')
+                        渲染 = 格式['小号格式'].format(小号[0], 小号[1], len(小号列表) - 1).replace('\\n', '\n')
+                        小号限制 = time()
+                        消息链 = [{'type': 'Plain', 'text': 渲染}]
+                        发送群临时消息(发送者, 群号, 消息链)
+                        小号列表.pop(0)
+                        保存小号(小号列表)
+                        消息链 = [{'type': 'Plain', 'text': '已私发,未收到请加机器人好友'}]
+                    else:
+                        消息链 = [{'type': 'Plain', 'text': '小号库存已空'}]
                 else:
-                    消息链 = [{'type': 'Plain', 'text': '小号冷却中,还剩下%s秒!' % str(小号限制 + 30 - time()).split('.')[0]}]
-                    发送消息('sendGroupMessage', 群号, 消息链)
+                    消息链 = [{'type': 'Plain', 'text': '小号冷却中,还剩下%s秒' % str(小号限制 + 30 - time()).split('.')[0]}]
             else:
-                消息链 = [{'type': 'Plain', 'text': '您不在授权群!'}]
-                发送消息('sendGroupMessage', 群号, 消息链)
+                消息链 = [{'type': 'Plain', 'text': '您不在授权群'}]
+            发送消息('sendGroupMessage', 群号, 消息链)
 
 
         elif 消息文本 == '获取小号':
             if 群号 in 配置['功能']['获取小号'] and 总开关['获取小号']:
                 if 小号限制 + 30 <= time() or 发送者 in 超管名单:
-                    模板 = 配置['格式']['小号格式']
-                    小号 = 小号列表[0].split('----')
-                    渲染 = 模板.format(小号[0], 小号[1], len(小号列表) - 1).replace('\\n', '\n')
-                    消息链 = [{'type': 'Plain', 'text': 渲染}]
-                    小号限制 = time()
-                    小号列表.pop(0)
-                    保存小号(小号列表)
+                    if len(小号列表) != 0 and 小号列表[0] != '':
+                        小号 = 小号列表[0].split('----')
+                        渲染 = 格式['小号格式'].format(小号[0], 小号[1], len(小号列表) - 1).replace('\\n', '\n')
+                        消息链 = [{'type': 'Plain', 'text': 渲染}]
+                        小号限制 = time()
+                        小号列表.pop(0)
+                        保存小号(小号列表)
+                    else:
+                        消息链 = [{'type': 'Plain', 'text': '小号库存已空'}]
                 else:
                     消息链 = [{'type': 'Plain', 'text': '小号冷却中,还剩下%s秒!' % str(小号限制 + 30 - time()).split('.')[0]}]
             else:
